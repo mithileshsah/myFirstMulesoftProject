@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:db="http://www.mulesoft.org/schema/mule/db" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch"
+	xmlns:file="http://www.mulesoft.org/schema/mule/file" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd">
+	<file:config name="File_Config" doc:name="File Config" doc:id="f0477339-5f44-4776-94d2-7020cd9da448" >
+		<file:connection workingDir="D:\File Location\source" />
+	</file:config>
+	<db:config name="Database_Config" doc:name="Database Config" doc:id="37a47255-643c-404c-aae7-9825445ea7d2" >
+		<db:my-sql-connection host="localhost" port="3306" user="root" password="root" database="mith" />
+	</db:config>
+	<file:config name="File_Config1" doc:name="File Config" doc:id="a447eef4-24b6-4b52-89bf-0cec2e13d9c8" >
+		<file:connection workingDir="D:\File Location\temp1" />
+	</file:config>
+	<flow name="batchFlow" doc:id="28afa564-f324-40cb-b7b5-86f8ba5eeb73" >
+		<scheduler doc:name="Scheduler" doc:id="6781b2c3-0582-48ca-a718-f99377098b26" >
+			<scheduling-strategy >
+				<fixed-frequency frequency="1" timeUnit="HOURS"/>
+			</scheduling-strategy>
+		</scheduler>
+		<db:select doc:name="Select" doc:id="058b71a5-be94-4b55-b0fc-e6b9b5bba469" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM employee]]></db:sql>
+		</db:select>
+		<batch:job jobName="batchBatch_Job" doc:id="33a64597-658a-4032-8c90-1410d79b8fa5" blockSize="5">
+			<batch:process-records >
+				<batch:step name="Batch_Step" doc:id="2dcafcee-4582-4ebb-a83d-93eb76d76e69" >
+					<file:write doc:name="Write" doc:id="b8e563d2-88f0-4717-8f46-56a23b033e09" config-ref="File_Config1" path='#[payload.emp_id as String ++ ".json"]'>
+						<file:content ><![CDATA[#[output application/json
+---
+payload]]]></file:content>
+					</file:write>
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="274bb1e3-0669-421e-8a92-5c6e43cede72" size="5">
+						<file:write doc:name="Write" doc:id="ea75dfd1-97cb-43c4-b9f5-07e9f7f9ea3f" path='#[now().milliseconds ++ ".json"]' config-ref="File_Config1">
+							<file:content ><![CDATA[#[output application/json
+---
+payload]]]></file:content>
+						</file:write>
+					</batch:aggregator>
+				</batch:step>
+				<batch:step name="Batch_Step1" doc:id="9f1d69bc-53d4-4c18-b475-109993788d4f" acceptExpression='payload.emp_department=="HR"'>
+					<ee:transform doc:name="Transform Message" doc:id="40b9459e-53a9-4da3-b2cc-06a0e073cc3e" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/xml
+---
+"Employee":
+{
+	employeeId: payload.emp_id,
+	EmployeeName:payload.emp_name
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<file:write doc:name="Write" doc:id="90e07bde-307d-4f3d-bdb8-20b3dbd443af" config-ref="File_Config1" path='#[payload.Employee.employeeId  is String ++ ".xml"]'/>
+				</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<file:write doc:name="Write" doc:id="8dfb0dda-fa1f-417e-a6a5-5e7983e34d05" config-ref="File_Config1" path="summry json">
+					<file:content ><![CDATA[#[output 
+application/json
+---
+payload]]]></file:content>
+				</file:write>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>
